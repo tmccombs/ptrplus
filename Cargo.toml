@@ -1,0 +1,8 @@
+[package]
+name = "ptrplus"
+version = "0.1.0"
+authors = ["Thayne McCombs <astrothayne@gmail.com>"]
+repository = "https://github.com/tmccombs/ptrplus"
+documentation = "https://docs.rs/ptrplus"
+
+[dependencies]
