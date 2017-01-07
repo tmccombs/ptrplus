@@ -1,4 +1,5 @@
 [![Travis](https://img.shields.io/travis/tmccombs/ptrplus.svg)](https://travis-ci.org/tmccombs/ptrplus)
+[![Crates.io](https://img.shields.io/crates/d/ptrplus.svg)](https://crates.io/crates/ptrplus)
 
 # ptrplus
 
