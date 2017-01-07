@@ -7,6 +7,31 @@ use std::ptr;
 ///
 /// This is implemented by types which can be converted
 /// to a pointer from a borrowed reference.
+///
+/// # Example
+/// ```
+/// use ptrplus::AsPtr;
+///
+/// let x: &u32 = &5;
+/// let y: *const u32 = x.as_ptr();
+/// unsafe {
+///     assert_eq!(*y, 5);
+/// }
+/// ```
+///
+/// ```
+/// use ptrplus::AsPtr;
+///
+/// let x = 5;
+/// let o1: Option<&u32> = None;
+/// let o2: Option<&u32> = Some(&x);
+///
+/// assert!(o1.as_ptr().is_null());
+/// assert!(!o2.as_ptr().is_null());
+/// unsafe {
+///     assert_eq!(*o2.as_ptr(), 5);
+/// }
+/// ```
 pub trait AsPtr {
     /// The type pointed to
     ///
@@ -82,6 +107,40 @@ impl<T> AsPtr for Option<T> where T: AsPtr {
 ///
 /// This is implemented by types that can be converted
 /// into a pointer by consuming ownership of the object
+///
+/// # Example
+/// ```
+/// use ptrplus::IntoRaw;
+///
+/// let x: Box<u32> = Box::new(5);
+/// let y: *mut u32 = IntoRaw::into_raw(x);
+/// unsafe {
+///   assert_eq!(*y, 5);
+///   *y = 6;
+///   Box::from_raw(y);
+/// }
+///
+/// ```
+///
+/// ```
+/// use ptrplus::{FromRaw, IntoRaw};
+///
+/// let o1: Option<Box<u32>> = None;
+/// let o2: Option<Box<u32>> = Some(Box::new(5));
+///
+/// let p1: *mut u32 = o1.into_raw();
+/// let p2: *mut u32 = o2.into_raw();
+///
+/// assert!(p1.is_null());
+/// assert!(!p2.is_null());
+/// unsafe {
+///     assert_eq!(*p2, 5);
+///     let o1: Option<Box<u32>> = Option::from_raw(p1);
+///     let o2: Option<Box<u32>> = Option::from_raw(p2);
+///     assert!(o1.is_none());
+///     assert!(!o2.is_none());
+/// }
+/// ```
 pub trait IntoRaw {
     /// The type pointed to
     ///
@@ -131,6 +190,18 @@ impl<T> IntoRaw for Option<T> where T: IntoRaw {
 }
 
 /// Trait for types that can be created from a raw pointer
+///
+/// # Examples
+/// ```
+/// use ptrplus::{FromRaw, IntoRaw};
+///
+/// let x: Box<u32> = Box::new(5);
+/// let y = x.into_raw();
+/// let z: Box<u32> = unsafe { FromRaw::from_raw(y) };
+/// assert_eq!(*z, 5);
+///
+/// ```
+///
 pub trait FromRaw<T> {
     /// Create `Self` from a raw pointer
     ///
