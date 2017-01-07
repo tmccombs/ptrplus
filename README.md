@@ -1,3 +1,5 @@
+[![Travis](https://img.shields.io/travis/tmccombs/ptrplus.svg)](https://travis-ci.org/tmccombs/ptrplus)
+
 # ptrplus
 
 Ptrplus is a library that adds additional functionality around raw pointers.
