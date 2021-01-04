@@ -49,7 +49,6 @@ pub trait AsPtr {
     fn as_ptr(&self) -> *const Self::Raw;
 }
 
-
 impl<T> AsPtr for [T] {
     type Raw = T;
     fn as_ptr(&self) -> *const T {
@@ -64,7 +63,10 @@ impl AsPtr for CStr {
     }
 }
 
-impl<'a, T> AsPtr for &'a T where T: Sized {
+impl<'a, T> AsPtr for &'a T
+where
+    T: Sized,
+{
     type Raw = T;
     fn as_ptr(&self) -> *const T {
         *self as *const T
@@ -78,7 +80,10 @@ impl<T> AsPtr for *const T {
     }
 }
 
-impl<T> AsPtr for Cell<T> where T: Copy {
+impl<T> AsPtr for Cell<T>
+where
+    T: Copy,
+{
     type Raw = T;
     fn as_ptr(&self) -> *const T {
         Cell::as_ptr(self)
@@ -92,13 +97,15 @@ impl<T> AsPtr for RefCell<T> {
     }
 }
 
-
-impl<T> AsPtr for Option<T> where T: AsPtr {
+impl<T> AsPtr for Option<T>
+where
+    T: AsPtr,
+{
     type Raw = T::Raw;
     fn as_ptr(&self) -> *const T::Raw {
         match self {
-            &Some(ref v) => v.as_ptr(),
-            &None => ptr::null()
+            Some(ref v) => v.as_ptr(),
+            None => ptr::null(),
         }
     }
 }
@@ -179,12 +186,15 @@ impl<T> IntoRaw for *mut T {
     }
 }
 
-impl<T> IntoRaw for Option<T> where T: IntoRaw {
+impl<T> IntoRaw for Option<T>
+where
+    T: IntoRaw,
+{
     type Raw = T::Raw;
     fn into_raw(self) -> *mut T::Raw {
         match self {
             Some(v) => v.into_raw(),
-            None => ptr::null_mut()
+            None => ptr::null_mut(),
         }
     }
 }
@@ -210,9 +220,22 @@ pub trait FromRaw<T> {
     /// means that the resulting object should
     /// clean up any resources associated with
     /// the pointer (such as memory).
+    ///
+    /// # Safety
+    ///
+    /// `raw` must be a pointer that is compatible with
+    /// the resulting type. For example, if `Self` is
+    /// `Box<T>`, then `raw` must be a pointer to memory allocated
+    /// as a Box. The exact requirements depend on the implementation.
+    ///
+    /// Additionally, this function takes ownership of the pointer. If
+    /// `raw` or an alias thereof is used after calling this function
+    /// it can potentially result in double-free, data races, or other
+    /// undefined behavior.
     unsafe fn from_raw(raw: *mut T) -> Self;
 }
 
+///
 impl<T> FromRaw<T> for Box<T> {
     unsafe fn from_raw(raw: *mut T) -> Self {
         Box::from_raw(raw)
@@ -231,7 +254,10 @@ impl<T> FromRaw<T> for *mut T {
     }
 }
 
-impl<T, U> FromRaw<U> for Option<T> where T: FromRaw<U> {
+impl<T, U> FromRaw<U> for Option<T>
+where
+    T: FromRaw<U>,
+{
     unsafe fn from_raw(raw: *mut U) -> Option<T> {
         if raw.is_null() {
             None
@@ -240,5 +266,3 @@ impl<T, U> FromRaw<U> for Option<T> where T: FromRaw<U> {
         }
     }
 }
-
-

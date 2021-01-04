@@ -6,8 +6,4 @@ authors = ["Thayne McCombs <astrothayne@gmail.com>"]
 repository = "https://github.com/tmccombs/ptrplus"
 documentation = "https://docs.rs/ptrplus"
 license = "MIT"
-
-[badges.travis-ci]
-repository = "tmccombs/ptrplus"
-
-[dependencies]
+edition = "2018"

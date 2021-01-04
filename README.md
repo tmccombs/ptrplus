@@ -1,4 +1,4 @@
-[![Travis](https://img.shields.io/travis/tmccombs/ptrplus.svg)](https://travis-ci.org/tmccombs/ptrplus)
+[![Build status](https://github.com/actions/tmccombs/ptrplus/workflows/Build/badge.svg)](https://github.com/tmccombs/ptrplus/actions?query=workflow%3ABuild)
 [![Crates.io](https://img.shields.io/crates/v/ptrplus.svg)](https://crates.io/crates/ptrplus)
 [![Crates.io](https://img.shields.io/crates/d/ptrplus.svg)](https://crates.io/crates/ptrplus)
 
