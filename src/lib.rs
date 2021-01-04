@@ -1,6 +1,7 @@
 use std::cell::{Cell, RefCell};
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
+use std::ops::Deref;
 use std::ptr;
 
 /// Trait for types that implement `as_ptr`.
@@ -94,6 +95,21 @@ impl<T> AsPtr for RefCell<T> {
     type Raw = T;
     fn as_ptr(&self) -> *const T {
         RefCell::as_ptr(self)
+    }
+}
+
+impl<T> AsPtr for Box<T> {
+    type Raw = T;
+    fn as_ptr(&self) -> *const T {
+        self.deref().as_ptr()
+    }
+}
+
+impl AsPtr for CString {
+    type Raw = c_char;
+
+    fn as_ptr(&self) -> *const c_char {
+        CStr::as_ptr(self)
     }
 }
 
