@@ -1,8 +1,22 @@
-use std::cell::{Cell, RefCell};
+#![cfg_attr(not(feature = "std"), no_std)]
+
+#[cfg(feature = "std")]
+extern crate core;
+
+#[cfg(feature = "alloc")]
+extern crate alloc;
+
+use core::cell::{Cell, RefCell};
+#[cfg(feature = "std")]
 use std::ffi::{CStr, CString};
+#[cfg(feature = "std")]
 use std::os::raw::c_char;
-use std::ops::Deref;
-use std::ptr;
+#[cfg(feature = "alloc")]
+use core::ops::Deref;
+use core::ptr;
+
+#[cfg(feature = "alloc")]
+use alloc::boxed::Box;
 
 /// Trait for types that implement `as_ptr`.
 ///
@@ -57,13 +71,6 @@ impl<T> AsPtr for [T] {
     }
 }
 
-impl AsPtr for CStr {
-    type Raw = c_char;
-    fn as_ptr(&self) -> *const c_char {
-        CStr::as_ptr(self)
-    }
-}
-
 impl<'a, T> AsPtr for &'a T
 where
     T: Sized,
@@ -98,18 +105,28 @@ impl<T> AsPtr for RefCell<T> {
     }
 }
 
-impl<T> AsPtr for Box<T> {
-    type Raw = T;
-    fn as_ptr(&self) -> *const T {
-        self.deref().as_ptr()
+#[cfg(feature = "std")]
+impl AsPtr for CStr {
+    type Raw = c_char;
+    fn as_ptr(&self) -> *const c_char {
+        CStr::as_ptr(self)
     }
 }
 
+#[cfg(feature = "std")]
 impl AsPtr for CString {
     type Raw = c_char;
 
     fn as_ptr(&self) -> *const c_char {
         CStr::as_ptr(self)
+    }
+}
+
+#[cfg(feature = "alloc")]
+impl<T> AsPtr for Box<T> {
+    type Raw = T;
+    fn as_ptr(&self) -> *const T {
+        self.deref().as_ptr()
     }
 }
 
@@ -181,6 +198,7 @@ pub trait IntoRaw {
     fn into_raw(self) -> *mut Self::Raw;
 }
 
+#[cfg(feature = "alloc")]
 impl<T> IntoRaw for Box<T> {
     type Raw = T;
     fn into_raw(self) -> *mut T {
@@ -188,6 +206,7 @@ impl<T> IntoRaw for Box<T> {
     }
 }
 
+#[cfg(feature = "std")]
 impl IntoRaw for CString {
     type Raw = c_char;
     fn into_raw(self) -> *mut c_char {
@@ -251,13 +270,14 @@ pub trait FromRaw<T> {
     unsafe fn from_raw(raw: *mut T) -> Self;
 }
 
-///
+#[cfg(feature = "alloc")]
 impl<T> FromRaw<T> for Box<T> {
     unsafe fn from_raw(raw: *mut T) -> Self {
         Box::from_raw(raw)
     }
 }
 
+#[cfg(feature = "std")]
 impl FromRaw<c_char> for CString {
     unsafe fn from_raw(raw: *mut c_char) -> CString {
         CString::from_raw(raw)

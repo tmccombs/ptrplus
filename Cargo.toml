@@ -7,3 +7,13 @@ repository = "https://github.com/tmccombs/ptrplus"
 documentation = "https://docs.rs/ptrplus"
 license = "MIT"
 edition = "2018"
+
+[features]
+
+default = ["std"]
+
+# Enable implmentations for types in the std crate
+std = ["alloc"]
+
+# Enable implemenations for types in the alloc crate
+alloc = []
