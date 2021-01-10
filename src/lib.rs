@@ -7,16 +7,49 @@ extern crate core;
 extern crate alloc;
 
 use core::cell::{Cell, RefCell};
+#[cfg(feature = "alloc")]
+use core::ops::Deref;
+use core::ptr::{self, NonNull};
 #[cfg(feature = "std")]
 use std::ffi::{CStr, CString};
 #[cfg(feature = "std")]
 use std::os::raw::c_char;
-#[cfg(feature = "alloc")]
-use core::ops::Deref;
-use core::ptr;
 
 #[cfg(feature = "alloc")]
 use alloc::boxed::Box;
+#[cfg(feature = "alloc")]
+use alloc::rc::Rc;
+#[cfg(feature = "alloc")]
+use alloc::sync::Arc;
+
+macro_rules! asptr_wrapper {
+    ($name:ident) => {
+        impl<T> AsPtr for $name<T> {
+            type Raw = T;
+            #[inline]
+            fn as_ptr(&self) -> *const T {
+                $name::as_ptr(self)
+            }
+        }
+    };
+}
+
+#[cfg(feature = "alloc")]
+macro_rules! owned_ptr_wrapper {
+    ($name:ident) => {
+        impl<T> IntoRaw for $name<T> {
+            type Raw = T;
+            fn into_raw(self) -> *mut T {
+                $name::into_raw(self) as *mut T
+            }
+        }
+        impl<T> FromRaw<T> for $name<T> {
+            unsafe fn from_raw(raw: *mut T) -> $name<T> {
+                $name::from_raw(raw)
+            }
+        }
+    };
+}
 
 /// Trait for types that implement `as_ptr`.
 ///
@@ -66,6 +99,7 @@ pub trait AsPtr {
 
 impl<T> AsPtr for [T] {
     type Raw = T;
+    #[inline]
     fn as_ptr(&self) -> *const T {
         <[T]>::as_ptr(self)
     }
@@ -76,38 +110,32 @@ where
     T: Sized,
 {
     type Raw = T;
+    #[inline]
     fn as_ptr(&self) -> *const T {
         *self as *const T
     }
 }
 
+impl<T> AsPtr for NonNull<T> {
+    type Raw = T;
+    #[inline]
+    fn as_ptr(&self) -> *const T {
+        NonNull::as_ptr(*self)
+    }
+}
+
 impl<T> AsPtr for *const T {
     type Raw = T;
+    #[inline]
     fn as_ptr(&self) -> *const T {
         *self
-    }
-}
-
-impl<T> AsPtr for Cell<T>
-where
-    T: Copy,
-{
-    type Raw = T;
-    fn as_ptr(&self) -> *const T {
-        Cell::as_ptr(self)
-    }
-}
-
-impl<T> AsPtr for RefCell<T> {
-    type Raw = T;
-    fn as_ptr(&self) -> *const T {
-        RefCell::as_ptr(self)
     }
 }
 
 #[cfg(feature = "std")]
 impl AsPtr for CStr {
     type Raw = c_char;
+    #[inline]
     fn as_ptr(&self) -> *const c_char {
         CStr::as_ptr(self)
     }
@@ -116,7 +144,7 @@ impl AsPtr for CStr {
 #[cfg(feature = "std")]
 impl AsPtr for CString {
     type Raw = c_char;
-
+    #[inline]
     fn as_ptr(&self) -> *const c_char {
         CStr::as_ptr(self)
     }
@@ -125,6 +153,7 @@ impl AsPtr for CString {
 #[cfg(feature = "alloc")]
 impl<T> AsPtr for Box<T> {
     type Raw = T;
+    #[inline]
     fn as_ptr(&self) -> *const T {
         self.deref().as_ptr()
     }
@@ -135,6 +164,7 @@ where
     T: AsPtr,
 {
     type Raw = T::Raw;
+    #[inline]
     fn as_ptr(&self) -> *const T::Raw {
         match self {
             Some(ref v) => v.as_ptr(),
@@ -142,6 +172,13 @@ where
         }
     }
 }
+
+asptr_wrapper!(Cell);
+asptr_wrapper!(RefCell);
+#[cfg(feature = "alloc")]
+asptr_wrapper!(Rc);
+#[cfg(feature = "alloc")]
+asptr_wrapper!(Arc);
 
 /// Trait for types that implement `into_raw`
 ///
@@ -198,17 +235,10 @@ pub trait IntoRaw {
     fn into_raw(self) -> *mut Self::Raw;
 }
 
-#[cfg(feature = "alloc")]
-impl<T> IntoRaw for Box<T> {
-    type Raw = T;
-    fn into_raw(self) -> *mut T {
-        Box::into_raw(self)
-    }
-}
-
 #[cfg(feature = "std")]
 impl IntoRaw for CString {
     type Raw = c_char;
+    #[inline]
     fn into_raw(self) -> *mut c_char {
         CString::into_raw(self)
     }
@@ -216,8 +246,17 @@ impl IntoRaw for CString {
 
 impl<T> IntoRaw for *mut T {
     type Raw = T;
+    #[inline]
     fn into_raw(self) -> *mut T {
         self
+    }
+}
+
+impl<T> IntoRaw for NonNull<T> {
+    type Raw = T;
+    #[inline]
+    fn into_raw(self) -> *mut T {
+        self.as_ptr()
     }
 }
 
@@ -226,6 +265,7 @@ where
     T: IntoRaw,
 {
     type Raw = T::Raw;
+    #[inline]
     fn into_raw(self) -> *mut T::Raw {
         match self {
             Some(v) => v.into_raw(),
@@ -263,6 +303,10 @@ pub trait FromRaw<T> {
     /// `Box<T>`, then `raw` must be a pointer to memory allocated
     /// as a Box. The exact requirements depend on the implementation.
     ///
+    /// Generally, the `raw` pointer must be the result of a previous
+    /// call to `into_raw` on the corresponding type. This the case for
+    /// types such as `Box`, `Rc`, and `Arc`.
+    ///
     /// Additionally, this function takes ownership of the pointer. If
     /// `raw` or an alias thereof is used after calling this function
     /// it can potentially result in double-free, data races, or other
@@ -270,26 +314,44 @@ pub trait FromRaw<T> {
     unsafe fn from_raw(raw: *mut T) -> Self;
 }
 
-#[cfg(feature = "alloc")]
-impl<T> FromRaw<T> for Box<T> {
-    unsafe fn from_raw(raw: *mut T) -> Self {
-        Box::from_raw(raw)
-    }
-}
-
 #[cfg(feature = "std")]
 impl FromRaw<c_char> for CString {
+    #[inline]
     unsafe fn from_raw(raw: *mut c_char) -> CString {
         CString::from_raw(raw)
     }
 }
 
+/// This implementation is always safe
 impl<T> FromRaw<T> for *mut T {
+    #[inline]
     unsafe fn from_raw(raw: *mut T) -> *mut T {
         raw
     }
 }
 
+/// This implementation is always safe
+impl<T> FromRaw<T> for *const T {
+    #[inline]
+    unsafe fn from_raw(raw: *mut T) -> *const T {
+        raw
+    }
+}
+
+/// ## Safety
+/// The input pointer must be non-null.
+///
+/// `Option<NonNull<T>>::from_raw` can be used if the pointer may be null.
+impl<T> FromRaw<T> for NonNull<T> {
+    #[inline]
+    unsafe fn from_raw(raw: *mut T) -> NonNull<T> {
+        NonNull::new_unchecked(raw)
+    }
+}
+
+/// ## Safety
+/// The input pointer must either be null (resulting in `None`), or be safe
+/// to convert into the inner pointer type.
 impl<T, U> FromRaw<U> for Option<T>
 where
     T: FromRaw<U>,
@@ -302,3 +364,10 @@ where
         }
     }
 }
+
+#[cfg(feature = "alloc")]
+owned_ptr_wrapper!(Box);
+#[cfg(feature = "alloc")]
+owned_ptr_wrapper!(Rc);
+#[cfg(feature = "alloc")]
+owned_ptr_wrapper!(Arc);
