@@ -435,20 +435,23 @@ mod tests {
             fn $name() {
                 let orig = $init;
                 let p = <$t as IntoRaw>::into_raw(orig);
-                let back = unsafe {
-                    <$t as FromRaw<_>>::from_raw(p)
-                };
+                let back = unsafe { <$t as FromRaw<_>>::from_raw(p) };
                 assert_eq!(*back, $cmp);
             }
-        }
+        };
     }
 
     #[cfg(feature = "std")]
-    from_into_test!(cstring_from_into, CString, CString::new("abc").unwrap(), *CStr::from_bytes_with_nul("abc\0".as_bytes()).unwrap());
+    from_into_test!(
+        cstring_from_into,
+        CString,
+        CString::new("abc").unwrap(),
+        *CStr::from_bytes_with_nul("abc\0".as_bytes()).unwrap()
+    );
     #[cfg(feature = "alloc")]
     from_into_test!(box_from_into, Box<u16>, Box::new(4u16), 4);
     #[cfg(feature = "alloc")]
-    from_into_test!(rc_from_into,  Rc<u16>, Rc::new(4u16), 4);
+    from_into_test!(rc_from_into, Rc<u16>, Rc::new(4u16), 4);
     #[cfg(feature = "alloc")]
     from_into_test!(arc_from_into, Arc<u16>, Arc::new(4u16), 4);
 
@@ -497,10 +500,7 @@ mod tests {
 
     #[test]
     fn none_from() {
-        let p = unsafe {
-            <Option<*mut u16> as FromRaw<_>>::from_raw(core::ptr::null_mut())
-        };
+        let p = unsafe { <Option<*mut u16> as FromRaw<_>>::from_raw(core::ptr::null_mut()) };
         assert_eq!(p, None);
     }
-
 }
