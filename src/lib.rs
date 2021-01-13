@@ -305,7 +305,9 @@ pub trait FromRaw<T> {
     ///
     /// Generally, the `raw` pointer must be the result of a previous
     /// call to `into_raw` on the corresponding type. This the case for
-    /// types such as `Box`, `Rc`, and `Arc`.
+    /// types such as `Box`, `Rc`, and `Arc`. If the documentation
+    /// for the implementation does not say otherwise, assume this is the
+    /// case.
     ///
     /// Additionally, this function takes ownership of the pointer. If
     /// `raw` or an alias thereof is used after calling this function
@@ -314,6 +316,8 @@ pub trait FromRaw<T> {
     unsafe fn from_raw(raw: *mut T) -> Self;
 }
 
+/// *Safety:* `from_raw` should only be called on a pointer originating
+/// from a [`CString`].
 #[cfg(feature = "std")]
 impl FromRaw<c_char> for CString {
     #[inline]
