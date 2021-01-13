@@ -1,4 +1,4 @@
-[![Build status](https://github.com/actions/tmccombs/ptrplus/workflows/Build/badge.svg)](https://github.com/tmccombs/ptrplus/actions?query=workflow%3ABuild)
+[![Build status](https://github.com/tmccombs/ptrplus/workflows/Build/badge.svg)](https://github.com/tmccombs/ptrplus/actions?query=workflow%3ABuild)
 [![Crates.io](https://img.shields.io/crates/v/ptrplus.svg)](https://crates.io/crates/ptrplus)
 [![Crates.io](https://img.shields.io/crates/d/ptrplus.svg)](https://crates.io/crates/ptrplus)
 
