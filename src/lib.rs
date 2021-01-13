@@ -105,7 +105,7 @@ impl<T> AsPtr for [T] {
     }
 }
 
-impl<'a, T> AsPtr for &'a T
+impl<'a, T: Sized> AsPtr for &'a T
 where
     T: Sized,
 {
@@ -371,3 +371,132 @@ owned_ptr_wrapper!(Box);
 owned_ptr_wrapper!(Rc);
 #[cfg(feature = "alloc")]
 owned_ptr_wrapper!(Arc);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    macro_rules! as_ptr_test {
+        ($name:ident, $t:ty, $init:expr, $compare:expr) => {
+            #[test]
+            fn $name() {
+                let x = $init;
+                let y: *const <$t as AsPtr>::Raw = <$t as AsPtr>::as_ptr(&x);
+                unsafe {
+                    assert_eq!(*y, $compare);
+                }
+            }
+        };
+    }
+
+    as_ptr_test!(ref_as_ptr, &u32, &5, 5);
+    //as_ptr_test!(slice_as_ptr, &[u32], &[5, 2]);
+    as_ptr_test!(nonnull_as_ptr, NonNull<u32>, NonNull::from(&5), 5);
+    as_ptr_test!(ptr_as_ptr, *const u32, &5u32 as *const u32, 5);
+    #[cfg(feature = "std")]
+    as_ptr_test!(
+        cstr_as_ptr,
+        CStr,
+        CStr::from_bytes_with_nul("abc\0".as_bytes()).unwrap(),
+        'a' as c_char
+    );
+    #[cfg(feature = "std")]
+    as_ptr_test!(
+        cstring_as_ptr,
+        CString,
+        CString::new("abc").unwrap(),
+        'a' as c_char
+    );
+    #[cfg(feature = "alloc")]
+    as_ptr_test!(box_as_ptr, Box<u16>, Box::new(3u16), 3);
+    as_ptr_test!(cell_as_ptr, Cell<u16>, Cell::new(7u16), 7);
+    as_ptr_test!(refcell_as_ptr, RefCell<u16>, RefCell::new(7u16), 7);
+    #[cfg(feature = "alloc")]
+    as_ptr_test!(rc_as_ptr, Rc<u16>, Rc::new(8u16), 8);
+    #[cfg(feature = "alloc")]
+    as_ptr_test!(arc_as_ptr, Arc<u16>, Arc::new(8u16), 8);
+
+    as_ptr_test!(some_as_ptr, Option<&u32>, Some(&1u32), 1);
+    #[test]
+    fn none_as_ptr() {
+        let x: Option<&u16> = None;
+        let y: *const u16 = <Option<&u16> as AsPtr>::as_ptr(&x);
+        assert!(y.is_null());
+    }
+
+    #[cfg(feature = "alloc")]
+    macro_rules! from_into_test {
+        ($name:ident, $t:ty, $init: expr, $cmp:expr) => {
+            #[test]
+            fn $name() {
+                let orig = $init;
+                let p = <$t as IntoRaw>::into_raw(orig);
+                let back = unsafe {
+                    <$t as FromRaw<_>>::from_raw(p)
+                };
+                assert_eq!(*back, $cmp);
+            }
+        }
+    }
+
+    #[cfg(feature = "std")]
+    from_into_test!(cstring_from_into, CString, CString::new("abc").unwrap(), *CStr::from_bytes_with_nul("abc\0".as_bytes()).unwrap());
+    #[cfg(feature = "alloc")]
+    from_into_test!(box_from_into, Box<u16>, Box::new(4u16), 4);
+    #[cfg(feature = "alloc")]
+    from_into_test!(rc_from_into,  Rc<u16>, Rc::new(4u16), 4);
+    #[cfg(feature = "alloc")]
+    from_into_test!(arc_from_into, Arc<u16>, Arc::new(4u16), 4);
+
+    #[test]
+    fn ptr_from_into() {
+        let mut data: u32 = 10;
+        let p = <*mut u32 as IntoRaw>::into_raw(&mut data);
+        unsafe {
+            let mptr: *mut u32 = <*mut u32 as FromRaw<_>>::from_raw(p);
+            *mptr = 54;
+        }
+        unsafe {
+            let cptr = <*const u32 as FromRaw<_>>::from_raw(p);
+            assert_eq!(*cptr, 54);
+        }
+    }
+
+    #[test]
+    fn nonnull_from_into() {
+        let mut data: u32 = 10;
+        let p = <NonNull<u32> as IntoRaw>::into_raw(NonNull::from(&mut data));
+        unsafe {
+            *p = 34;
+            let p = <NonNull<u32> as FromRaw<_>>::from_raw(p);
+            assert_eq!(p, NonNull::from(&data));
+        }
+        assert_eq!(data, 34);
+    }
+
+    #[test]
+    fn some_from_into() {
+        let mut data: u32 = 10;
+        let p = <Option<*mut u32> as IntoRaw>::into_raw(Some(&mut data));
+        unsafe {
+            *p = 54;
+            let p = <Option<*const u32> as FromRaw<_>>::from_raw(p);
+            assert_eq!(p, Some(&data as *const u32));
+        };
+        assert_eq!(data, 54);
+    }
+
+    #[test]
+    fn none_into() {
+        assert!(<Option<*mut u16> as IntoRaw>::into_raw(None).is_null());
+    }
+
+    #[test]
+    fn none_from() {
+        let p = unsafe {
+            <Option<*mut u16> as FromRaw<_>>::from_raw(core::ptr::null_mut())
+        };
+        assert_eq!(p, None);
+    }
+
+}
