@@ -17,3 +17,6 @@ std = ["alloc"]
 
 # Enable implemenations for types in the alloc crate
 alloc = []
+
+# Enable features that depend on experimental rustc features
+nightly = []

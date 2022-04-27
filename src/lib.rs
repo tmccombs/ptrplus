@@ -1,4 +1,5 @@
 #![cfg_attr(not(feature = "std"), no_std)]
+#![cfg_attr(feature = "nightly", feature(generic_associated_types))]
 
 #[cfg(feature = "std")]
 extern crate core;
@@ -375,6 +376,102 @@ owned_ptr_wrapper!(Box);
 owned_ptr_wrapper!(Rc);
 #[cfg(feature = "alloc")]
 owned_ptr_wrapper!(Arc);
+
+#[cfg(feature = "nightly")]
+mod nightly {
+    #[cfg(feature = "alloc")]
+    use alloc::{boxed::Box, rc::Rc, sync::Arc};
+    use core::ptr::NonNull;
+
+    pub trait FromRawFamily {
+        type Pointer<T: ?Sized>;
+
+        /// Create `Pointer<T>` from a raw pointer
+        ///
+        /// After calling this method the raw pointer
+        /// is owned by the resulting object. This
+        /// means that the resulting object should
+        /// clean up any resources associated with
+        /// the pointer (such as memory).
+        ///
+        /// # Safety
+        ///
+        /// `raw` must be a pointer that is compatible with
+        /// the resulting type. For example, if `Pointer<T>` is
+        /// `Box<T>`, then `raw` must be a pointer to memory allocated
+        /// as a Box. The exact requirements depend on the implementation.
+        ///
+        /// Generally, the `raw` pointer must be the result of a previous
+        /// call to `into_raw` on the corresponding type. This the case for
+        /// types such as `Box`, `Rc`, and `Arc`. If the documentation
+        /// for the implementation does not say otherwise, assume this is the
+        /// case.
+        ///
+        /// Additionally, this function takes ownership of the pointer. If
+        /// `raw` or an alias thereof is used after calling this function
+        /// it can potentially result in double-free, data races, or other
+        /// undefined behavior.
+        unsafe fn from_raw<T: ?Sized>(raw: *mut T) -> Self::Pointer<T>;
+    }
+
+    macro_rules! from_raw_family_impl {
+        ($family:ident($t:ty) $v:ident => $from_raw:expr) => {
+            struct $family;
+            impl FromRawFamily for $family {
+                type Pointer<T: ?Sized> = $t;
+                unsafe fn from_raw<T: ?Sized>($v: *mut T) -> Self::Pointer<T> {
+                    $from_raw
+                }
+            }
+        }
+    }
+
+    from_raw_family_impl!(MutPtrFamily(*mut T) r => r);
+    from_raw_family_impl!(ConstPtrFamily(*const T) r => r);
+    from_raw_family_impl!(NonNullFamily(NonNull<T>) r => NonNull::new_unchecked(r));
+
+    /// Family of Options of a certain pointer type.
+    pub struct OptionFromRawFamily<P> {
+        _phantom: core::marker::PhantomData<P>,
+
+    }
+    /// ## Safety
+    /// The input pointer must either be null (resulting in `None`), or be safe
+    /// to convert into the inner pointer type.
+    impl<P: FromRawFamily> FromRawFamily for OptionFromRawFamily<P> {
+        type Pointer<T: ?Sized> = Option<P::Pointer<T>>;
+        unsafe fn from_raw<T: ?Sized>(raw: *mut T) -> Self::Pointer<T> {
+            if raw.is_null() {
+                None
+            } else {
+                Some(P::from_raw(raw))
+            }
+        }
+    }
+
+    macro_rules! owned_pointer_kind {
+        ($name:ident, $ptr_name:ident) => {
+            ///  kind for `$ptr_name`.
+            pub struct $name;
+            impl FromRawFamily for $name {
+                type Pointer<T: ?Sized> = $ptr_name<T>;
+
+                unsafe fn from_raw<T: ?Sized>(raw: *mut T) -> Self::Pointer<T> {
+                    $ptr_name::from_raw(raw)
+                }
+            }
+        };
+    }
+
+    #[cfg(feature = "alloc")]
+    owned_pointer_kind!(BoxFamily, Box);
+    #[cfg(feature = "alloc")]
+    owned_pointer_kind!(RcFamily, Rc);
+    #[cfg(feature = "alloc")]
+    owned_pointer_kind!(ArcFamily, Arc);
+}
+
+pub use nightly::*;
 
 #[cfg(test)]
 mod tests {
