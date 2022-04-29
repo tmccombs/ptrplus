@@ -13,8 +13,14 @@ jobs:
         rust:
           - stable
           - beta
-          - nightly
+        features:
+          - std
+        include:
+          - rust: nightly
+            features: std,nightly
     continue-on-error: ${{ matrix.rust == 'nightly' }}
+    env:
+      TOOLCHAIN: ${{ matrix.rust }}
     steps:
       - uses: actions/checkout@v1
       - uses: actions-rs/toolchain@v1
@@ -24,9 +30,9 @@ jobs:
           profile: minimal
           components: rustfmt, clippy
       - name: Build
-        run: cargo build -v
+        run: cargo build -v --features ${{ matrix.features }}
       - name: Test
-        run: cargo test -v
+        run: cargo test -v --features ${{ matrix.features }}
       - name: Lint
         run: cargo clippy -- -D warnings
       - name: Format check

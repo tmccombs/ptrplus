@@ -6,7 +6,7 @@ authors = ["Thayne McCombs <astrothayne@gmail.com>"]
 repository = "https://github.com/tmccombs/ptrplus"
 documentation = "https://docs.rs/ptrplus"
 license = "MIT"
-edition = "2018"
+edition = "2021"
 
 [features]
 
@@ -17,3 +17,6 @@ std = ["alloc"]
 
 # Enable implemenations for types in the alloc crate
 alloc = []
+
+# Enable features that depend on experimental rustc features
+nightly = []

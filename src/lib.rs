@@ -1,4 +1,5 @@
 #![cfg_attr(not(feature = "std"), no_std)]
+#![cfg_attr(feature = "nightly", feature(generic_associated_types))]
 
 #[cfg(feature = "std")]
 extern crate core;
@@ -376,6 +377,94 @@ owned_ptr_wrapper!(Rc);
 #[cfg(feature = "alloc")]
 owned_ptr_wrapper!(Arc);
 
+#[cfg(feature = "nightly")]
+mod nightly {
+    #[cfg(feature = "alloc")]
+    use alloc::{boxed::Box, rc::Rc, sync::Arc};
+    use core::ptr::NonNull;
+
+    pub trait FromRawFamily {
+        type Pointer<T: ?Sized>;
+
+        /// Create `Pointer<T>` from a raw pointer
+        ///
+        /// After calling this method the raw pointer
+        /// is owned by the resulting object. This
+        /// means that the resulting object should
+        /// clean up any resources associated with
+        /// the pointer (such as memory).
+        ///
+        /// # Safety
+        ///
+        /// `raw` must be a pointer that is compatible with
+        /// the resulting type. For example, if `Pointer<T>` is
+        /// `Box<T>`, then `raw` must be a pointer to memory allocated
+        /// as a Box. The exact requirements depend on the implementation.
+        ///
+        /// Generally, the `raw` pointer must be the result of a previous
+        /// call to `into_raw` on the corresponding type. This the case for
+        /// types such as `Box`, `Rc`, and `Arc`. If the documentation
+        /// for the implementation does not say otherwise, assume this is the
+        /// case.
+        ///
+        /// Additionally, this function takes ownership of the pointer. If
+        /// `raw` or an alias thereof is used after calling this function
+        /// it can potentially result in double-free, data races, or other
+        /// undefined behavior.
+        unsafe fn from_raw<T: ?Sized>(raw: *mut T) -> Self::Pointer<T>;
+    }
+
+    macro_rules! from_raw_family_impl {
+        ($family:ident($t:ty) $v:ident => $from_raw:expr) => {
+            pub struct $family;
+            impl FromRawFamily for $family {
+                type Pointer<T: ?Sized> = $t;
+                unsafe fn from_raw<T: ?Sized>($v: *mut T) -> Self::Pointer<T> {
+                    $from_raw
+                }
+            }
+        };
+    }
+
+    from_raw_family_impl!(MutPtrFamily(*mut T) r => r);
+    from_raw_family_impl!(ConstPtrFamily(*const T) r => r);
+    from_raw_family_impl!(NonNullFamily(NonNull<T>) r => NonNull::new_unchecked(r));
+
+    /// Family of Options of a certain pointer type.
+    pub struct OptionFromRawFamily<P> {
+        _phantom: core::marker::PhantomData<P>,
+    }
+    /// ## Safety
+    /// The input pointer must either be null (resulting in `None`), or be safe
+    /// to convert into the inner pointer type.
+    impl<P: FromRawFamily> FromRawFamily for OptionFromRawFamily<P> {
+        type Pointer<T: ?Sized> = Option<P::Pointer<T>>;
+        unsafe fn from_raw<T: ?Sized>(raw: *mut T) -> Self::Pointer<T> {
+            if raw.is_null() {
+                None
+            } else {
+                Some(P::from_raw(raw))
+            }
+        }
+    }
+
+    macro_rules! owned_pointer_kind {
+        ($name:ident, $ptr_name:ident) => {
+            from_raw_family_impl!($name($ptr_name<T>) r => $ptr_name::from_raw(r));
+        };
+    }
+
+    #[cfg(feature = "alloc")]
+    owned_pointer_kind!(BoxFamily, Box);
+    #[cfg(feature = "alloc")]
+    owned_pointer_kind!(RcFamily, Rc);
+    #[cfg(feature = "alloc")]
+    owned_pointer_kind!(ArcFamily, Arc);
+}
+
+#[cfg(feature = "nightly")]
+pub use nightly::*;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -502,5 +591,90 @@ mod tests {
     fn none_from() {
         let p = unsafe { <Option<*mut u16> as FromRaw<_>>::from_raw(core::ptr::null_mut()) };
         assert_eq!(p, None);
+    }
+
+    /// # Safety
+    /// It must be safe to convert a `*mut V::Raw` into a `F::Pointer<V::Raw>`
+    #[cfg(feature = "nightly")]
+    fn family_round_trip<F: FromRawFamily, V>(v: F::Pointer<V>) -> F::Pointer<V>
+    where
+        F::Pointer<V>: IntoRaw<Raw = V>,
+    {
+        let p = v.into_raw();
+        unsafe { F::from_raw(p) }
+    }
+
+    #[cfg(feature = "nightly")]
+    fn test_from_family<F: FromRawFamily, V>(p: F::Pointer<V>, cmp: &V)
+    where
+        F::Pointer<V>: IntoRaw<Raw = V> + Deref<Target = V>,
+        V: std::fmt::Debug + Eq,
+    {
+        let ptr = family_round_trip::<F, _>(p);
+        assert_eq!(&*ptr, cmp);
+    }
+
+    #[cfg(feature = "nightly")]
+    #[test]
+    fn mut_ptr_family() {
+        let mut x = 4;
+        let p = family_round_trip::<MutPtrFamily, _>(&mut x as *mut _);
+        assert_eq!(p, &mut x as *mut _);
+        assert_eq!(unsafe { *p }, 4);
+    }
+
+    #[cfg(feature = "nightly")]
+    #[test]
+    fn const_ptr_family() {
+        let mut x = 23;
+        let p = unsafe { ConstPtrFamily::from_raw(&mut x as *mut _) };
+        assert_eq!(p, &x as *const _);
+        assert_eq!(unsafe { *p }, 23);
+    }
+
+    #[cfg(feature = "nightly")]
+    #[test]
+    fn nonnull_family() {
+        let mut x = 23;
+        let p = unsafe { NonNull::from_raw(&mut x as *mut _) };
+        assert_eq!(p, (&x).into());
+        assert_eq!(unsafe { *p.as_ref() }, 23);
+    }
+
+    #[cfg(feature = "nightly")]
+    #[test]
+    fn option_family_none() {
+        let n = ptr::null_mut::<u8>();
+
+        assert!(unsafe { OptionFromRawFamily::<MutPtrFamily>::from_raw(n) }.is_none());
+    }
+
+    #[cfg(feature = "nightly")]
+    #[test]
+    fn option_family_some() {
+        let mut x = 89;
+
+        let p = unsafe { OptionFromRawFamily::<MutPtrFamily>::from_raw(&mut x as *mut _) };
+        assert!(p.is_some());
+        assert_eq!(p, Some(&mut x as *mut _));
+        assert_eq!(unsafe { *p.unwrap() }, 89);
+    }
+
+    #[cfg(all(feature = "alloc", feature = "nightly"))]
+    #[test]
+    fn box_family() {
+        test_from_family::<BoxFamily, _>(Box::new(16), &16);
+    }
+
+    #[cfg(all(feature = "alloc", feature = "nightly"))]
+    #[test]
+    fn rc_family() {
+        test_from_family::<RcFamily, _>(Rc::new(16), &16);
+    }
+
+    #[cfg(all(feature = "alloc", feature = "nightly"))]
+    #[test]
+    fn arc_family() {
+        test_from_family::<ArcFamily, _>(Arc::new(16), &16);
     }
 }
