@@ -38,13 +38,13 @@ macro_rules! asptr_wrapper {
 #[cfg(feature = "alloc")]
 macro_rules! owned_ptr_wrapper {
     ($name:ident) => {
-        impl<T> IntoRaw for $name<T> {
+        impl<T: ?Sized> IntoRaw for $name<T> {
             type Raw = T;
             fn into_raw(self) -> *mut T {
                 $name::into_raw(self) as *mut T
             }
         }
-        impl<T> FromRaw<T> for $name<T> {
+        impl<T: ?Sized> FromRaw<T> for $name<T> {
             unsafe fn from_raw(raw: *mut T) -> $name<T> {
                 $name::from_raw(raw)
             }
@@ -85,7 +85,7 @@ pub trait AsPtr {
     /// The type pointed to
     ///
     /// `as_ptr` will return a pointer to this type
-    type Raw;
+    type Raw: ?Sized;
 
     /// Returns a raw pointer to the contained content
     ///
@@ -106,10 +106,7 @@ impl<T> AsPtr for [T] {
     }
 }
 
-impl<'a, T: Sized> AsPtr for &'a T
-where
-    T: Sized,
-{
+impl<'a, T: ?Sized> AsPtr for &'a T {
     type Raw = T;
     #[inline]
     fn as_ptr(&self) -> *const T {
@@ -117,7 +114,7 @@ where
     }
 }
 
-impl<T> AsPtr for NonNull<T> {
+impl<T: ?Sized> AsPtr for NonNull<T> {
     type Raw = T;
     #[inline]
     fn as_ptr(&self) -> *const T {
@@ -125,7 +122,7 @@ impl<T> AsPtr for NonNull<T> {
     }
 }
 
-impl<T> AsPtr for *const T {
+impl<T: ?Sized> AsPtr for *const T {
     type Raw = T;
     #[inline]
     fn as_ptr(&self) -> *const T {
@@ -152,7 +149,7 @@ impl AsPtr for CString {
 }
 
 #[cfg(feature = "alloc")]
-impl<T> AsPtr for Box<T> {
+impl<T: ?Sized> AsPtr for Box<T> {
     type Raw = T;
     #[inline]
     fn as_ptr(&self) -> *const T {
@@ -163,6 +160,7 @@ impl<T> AsPtr for Box<T> {
 impl<T> AsPtr for Option<T>
 where
     T: AsPtr,
+    T::Raw: Sized,
 {
     type Raw = T::Raw;
     #[inline]
@@ -223,7 +221,7 @@ pub trait IntoRaw {
     /// The type pointed to
     ///
     /// `into_raw` returns a mutable pointer to this type
-    type Raw;
+    type Raw: ?Sized;
 
     /// Consumes `self` returning the wrapped raw pointer.
     ///
@@ -245,7 +243,7 @@ impl IntoRaw for CString {
     }
 }
 
-impl<T> IntoRaw for *mut T {
+impl<T: ?Sized> IntoRaw for *mut T {
     type Raw = T;
     #[inline]
     fn into_raw(self) -> *mut T {
@@ -253,7 +251,7 @@ impl<T> IntoRaw for *mut T {
     }
 }
 
-impl<T> IntoRaw for NonNull<T> {
+impl<T: ?Sized> IntoRaw for NonNull<T> {
     type Raw = T;
     #[inline]
     fn into_raw(self) -> *mut T {
@@ -264,6 +262,7 @@ impl<T> IntoRaw for NonNull<T> {
 impl<T> IntoRaw for Option<T>
 where
     T: IntoRaw,
+    T::Raw: Sized,
 {
     type Raw = T::Raw;
     #[inline]
@@ -288,7 +287,7 @@ where
 ///
 /// ```
 ///
-pub trait FromRaw<T> {
+pub trait FromRaw<T: ?Sized> {
     /// Create `Self` from a raw pointer
     ///
     /// After calling this method the raw pointer
@@ -328,7 +327,7 @@ impl FromRaw<c_char> for CString {
 }
 
 /// This implementation is always safe
-impl<T> FromRaw<T> for *mut T {
+impl<T: ?Sized> FromRaw<T> for *mut T {
     #[inline]
     unsafe fn from_raw(raw: *mut T) -> *mut T {
         raw
@@ -336,7 +335,7 @@ impl<T> FromRaw<T> for *mut T {
 }
 
 /// This implementation is always safe
-impl<T> FromRaw<T> for *const T {
+impl<T: ?Sized> FromRaw<T> for *const T {
     #[inline]
     unsafe fn from_raw(raw: *mut T) -> *const T {
         raw
@@ -347,7 +346,7 @@ impl<T> FromRaw<T> for *const T {
 /// The input pointer must be non-null.
 ///
 /// `Option<NonNull<T>>::from_raw` can be used if the pointer may be null.
-impl<T> FromRaw<T> for NonNull<T> {
+impl<T: ?Sized> FromRaw<T> for NonNull<T> {
     #[inline]
     unsafe fn from_raw(raw: *mut T) -> NonNull<T> {
         NonNull::new_unchecked(raw)
@@ -357,7 +356,7 @@ impl<T> FromRaw<T> for NonNull<T> {
 /// ## Safety
 /// The input pointer must either be null (resulting in `None`), or be safe
 /// to convert into the inner pointer type.
-impl<T, U> FromRaw<U> for Option<T>
+impl<T, U: ?Sized> FromRaw<U> for Option<T>
 where
     T: FromRaw<U>,
 {
