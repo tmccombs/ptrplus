@@ -19,16 +19,13 @@ jobs:
           - rust: nightly
             features: std,nightly
     continue-on-error: ${{ matrix.rust == 'nightly' }}
-    env:
-      TOOLCHAIN: ${{ matrix.rust }}
     steps:
       - uses: actions/checkout@v1
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: ${{ matrix.rust }}
-          override: true
-          profile: minimal
-          components: rustfmt, clippy
+      - name: Install Rust toolchain
+        run: |
+          rustup set profile minimal
+          rustup toolchain install ${{ matrix.rust }} -c clippy,rustfmt
+          rustup override set ${{ matrix.rust }}
       - name: Build
         run: cargo build -v --features ${{ matrix.features }}
       - name: Test
