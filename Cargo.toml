@@ -7,6 +7,7 @@ repository = "https://github.com/tmccombs/ptrplus"
 documentation = "https://docs.rs/ptrplus"
 license = "MIT"
 edition = "2021"
+rust-version = "1.65"
 
 [features]
 
@@ -19,4 +20,5 @@ std = ["alloc"]
 alloc = []
 
 # Enable features that depend on experimental rustc features
+# Currently unused
 nightly = []
